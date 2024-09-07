@@ -2965,7 +2965,6 @@ impl Workspace {
                 self.split_and_clone(pane, *direction, cx);
             }
             pane::Event::JoinIntoNext => self.join_pane_into_next(pane, cx),
-            pane::Event::JoinAll => self.join_all_panes(cx),
             pane::Event::Remove { focus_on_pane } => {
                 self.remove_pane(pane, focus_on_pane.clone(), cx)
             }
