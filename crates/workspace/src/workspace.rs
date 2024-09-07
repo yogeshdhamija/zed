@@ -6746,7 +6746,7 @@ mod tests {
             cx: &mut VisualTestContext,
             workspace: &View<Workspace>,
             item_id: u64,
-        ) {
+        ) -> View<TestItem> {
             let item = cx.new_view(|cx| {
                 TestItem::new(cx).with_project_items(&[TestProjectItem::new(
                     item_id,
@@ -6755,13 +6755,19 @@ mod tests {
                 )])
             });
             workspace.update(cx, |workspace, cx| {
-                workspace.add_item_to_active_pane(Box::new(item), None, false, cx);
+                workspace.add_item_to_active_pane(Box::new(item.clone()), None, false, cx);
             });
+            return item;
         }
 
-        fn split_pane(cx: &mut VisualTestContext, workspace: &View<Workspace>) {
-            workspace.update(cx, |workspace, cx| {
-                workspace.split_pane(workspace.active_pane().clone(), SplitDirection::Right, cx);
+        fn split_pane(cx: &mut VisualTestContext, workspace: &View<Workspace>) -> View<Pane> {
+            return workspace.update(cx, |workspace, cx| {
+                let new_pane = workspace.split_pane(
+                    workspace.active_pane().clone(),
+                    SplitDirection::Right,
+                    cx,
+                );
+                new_pane
             });
         }
 
@@ -6782,15 +6788,22 @@ mod tests {
             split_pane(cx, &workspace);
             add_an_item_to_active_pane(cx, &workspace, 2);
             split_pane(cx, &workspace);
-            add_an_item_to_active_pane(cx, &workspace, 3);
+            let last_item = add_an_item_to_active_pane(cx, &workspace, 3);
 
             cx.executor().run_until_parked();
 
             workspace.update(cx, |workspace, cx| {
                 let num_panes = workspace.panes().len();
                 let num_items_in_current_pane = workspace.active_pane().read(cx).items().count();
+                let active_item = workspace
+                    .active_pane()
+                    .read(cx)
+                    .active_item()
+                    .expect("item is in focus");
+
                 assert_eq!(num_panes, 3);
                 assert_eq!(num_items_in_current_pane, 1);
+                assert_eq!(active_item.item_id(), last_item.item_id());
             });
 
             workspace.update(cx, |workspace, cx| {
@@ -6800,8 +6813,15 @@ mod tests {
             workspace.update(cx, |workspace, cx| {
                 let num_panes = workspace.panes().len();
                 let num_items_in_current_pane = workspace.active_pane().read(cx).items().count();
+                let active_item = workspace
+                    .active_pane()
+                    .read(cx)
+                    .active_item()
+                    .expect("item is in focus");
+
                 assert_eq!(num_panes, 1);
                 assert_eq!(num_items_in_current_pane, 3);
+                assert_eq!(active_item.item_id(), last_item.item_id());
             });
         }
 
