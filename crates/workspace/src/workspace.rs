@@ -6718,6 +6718,59 @@ mod tests {
     }
 
     #[gpui::test]
+    async fn test_join_all_panes(cx: &mut gpui::TestAppContext) {
+        init_test(cx);
+        let fs = FakeFs::new(cx.executor());
+        let project = Project::test(fs, None, cx).await;
+        let (workspace, cx) = cx.add_window_view(|cx| Workspace::test_new(project, cx));
+
+        fn add_an_item_to_active_pane(
+            cx: &mut VisualTestContext,
+            workspace: &View<Workspace>,
+            item_id: u64,
+        ) {
+            let item = cx.new_view(|cx| {
+                TestItem::new(cx).with_project_items(&[TestProjectItem::new(
+                    item_id,
+                    "item{item_id}.txt",
+                    cx,
+                )])
+            });
+            workspace.update(cx, |workspace, cx| {
+                workspace.add_item_to_active_pane(Box::new(item), None, false, cx);
+            });
+        }
+        fn split_pane(cx: &mut VisualTestContext, workspace: &View<Workspace>) {
+            workspace.update(cx, |workspace, cx| {
+                workspace.split_pane(workspace.active_pane().clone(), SplitDirection::Right, cx);
+            });
+        }
+
+        add_an_item_to_active_pane(cx, &workspace, 1);
+        split_pane(cx, &workspace);
+        add_an_item_to_active_pane(cx, &workspace, 2);
+        split_pane(cx, &workspace);
+        add_an_item_to_active_pane(cx, &workspace, 3);
+
+        cx.executor().run_until_parked();
+
+        workspace.update(cx, |workspace, cx| {
+            assert_eq!(workspace.panes().len(), 3);
+            assert_eq!(workspace.active_pane().read(cx).items().count(), 1);
+        });
+
+        // Join all panes TODO
+        workspace.update(cx, |workspace, cx| {
+            workspace.join_pane_into_next(workspace.active_pane().clone(), cx);
+        });
+
+        workspace.update(cx, |workspace, cx| {
+            assert_eq!(workspace.panes().len(), 1);
+            assert_eq!(workspace.active_pane().read(cx).items().count(), 3);
+        });
+    }
+
+    #[gpui::test]
     async fn test_join_pane_into_next(cx: &mut gpui::TestAppContext) {
         init_test(cx);
 
