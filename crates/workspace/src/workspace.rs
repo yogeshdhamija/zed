@@ -3124,8 +3124,12 @@ impl Workspace {
     }
 
     pub fn join_all_panes(&mut self, cx: &mut ViewContext<Self>) {
+        let active_item = self.active_pane.read(cx).active_item().take();
         for pane in self.panes.clone() {
             self.move_all_items(cx, pane.clone(), self.active_pane.clone().clone());
+        }
+        if let Some(active_item) = active_item {
+            self.activate_item(&(*active_item), true, true, cx);
         }
         cx.notify();
     }
