@@ -3122,21 +3122,42 @@ impl Workspace {
         }))
     }
 
-    pub fn join_pane_into_next(&mut self, pane: View<Pane>, cx: &mut ViewContext<Self>) {
-        let next_pane = self
-            .find_pane_in_direction(SplitDirection::Right, cx)
-            .or_else(|| self.find_pane_in_direction(SplitDirection::Down, cx))
-            .or_else(|| self.find_pane_in_direction(SplitDirection::Left, cx))
-            .or_else(|| self.find_pane_in_direction(SplitDirection::Up, cx));
-        let Some(next_pane) = next_pane else {
-            return;
-        };
-
-        let item_ids: Vec<EntityId> = pane.read(cx).items().map(|item| item.item_id()).collect();
-        for item_id in item_ids {
-            self.move_item(pane.clone(), next_pane.clone(), item_id, 0, cx);
+    pub fn join_all_panes(&mut self, cx: &mut ViewContext<Self>) {
+        for pane in self.panes.clone() {
+            self.move_all_items(cx, pane.clone(), self.active_pane.clone().clone());
         }
         cx.notify();
+    }
+
+    pub fn join_pane_into_next(&mut self, pane: View<Pane>, cx: &mut ViewContext<Self>) {
+        let Some(next_pane) = self.find_next_pane(cx) else {
+            return;
+        };
+        self.move_all_items(cx, pane, next_pane);
+        cx.notify();
+    }
+
+    fn move_all_items(
+        &mut self,
+        cx: &mut ViewContext<'_, Workspace>,
+        from_pane: View<Pane>,
+        to_pane: View<Pane>,
+    ) {
+        let item_ids: Vec<EntityId> = from_pane
+            .read(cx)
+            .items()
+            .map(|item| item.item_id())
+            .collect();
+        for item_id in item_ids {
+            self.move_item(from_pane.clone(), to_pane.clone(), item_id, 0, cx);
+        }
+    }
+
+    fn find_next_pane(&mut self, cx: &mut ViewContext<'_, Workspace>) -> Option<View<Pane>> {
+        self.find_pane_in_direction(SplitDirection::Right, cx)
+            .or_else(|| self.find_pane_in_direction(SplitDirection::Down, cx))
+            .or_else(|| self.find_pane_in_direction(SplitDirection::Left, cx))
+            .or_else(|| self.find_pane_in_direction(SplitDirection::Up, cx))
     }
 
     pub fn move_item(
@@ -6759,9 +6780,8 @@ mod tests {
             assert_eq!(workspace.active_pane().read(cx).items().count(), 1);
         });
 
-        // Join all panes TODO
         workspace.update(cx, |workspace, cx| {
-            workspace.join_pane_into_next(workspace.active_pane().clone(), cx);
+            workspace.join_all_panes(cx);
         });
 
         workspace.update(cx, |workspace, cx| {
