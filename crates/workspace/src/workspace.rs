@@ -6739,12 +6739,8 @@ mod tests {
         });
     }
 
-    #[gpui::test]
-    async fn test_join_all_panes(cx: &mut gpui::TestAppContext) {
-        init_test(cx);
-        let fs = FakeFs::new(cx.executor());
-        let project = Project::test(fs, None, cx).await;
-        let (workspace, cx) = cx.add_window_view(|cx| Workspace::test_new(project, cx));
+    mod joining_panes_tests {
+        use super::*;
 
         fn add_an_item_to_active_pane(
             cx: &mut VisualTestContext,
@@ -6762,170 +6758,184 @@ mod tests {
                 workspace.add_item_to_active_pane(Box::new(item), None, false, cx);
             });
         }
+
         fn split_pane(cx: &mut VisualTestContext, workspace: &View<Workspace>) {
             workspace.update(cx, |workspace, cx| {
                 workspace.split_pane(workspace.active_pane().clone(), SplitDirection::Right, cx);
             });
         }
 
-        add_an_item_to_active_pane(cx, &workspace, 1);
-        split_pane(cx, &workspace);
-        add_an_item_to_active_pane(cx, &workspace, 2);
-        split_pane(cx, &workspace);
-        add_an_item_to_active_pane(cx, &workspace, 3);
+        async fn setup_workspace(
+            cx: &mut gpui::TestAppContext,
+        ) -> (View<Workspace>, &mut VisualTestContext) {
+            init_test(cx);
+            let fs = FakeFs::new(cx.executor());
+            let project = Project::test(fs, None, cx).await;
+            cx.add_window_view(|cx| Workspace::test_new(project, cx))
+        }
 
-        cx.executor().run_until_parked();
+        #[gpui::test]
+        async fn test_join_all_panes(cx: &mut gpui::TestAppContext) {
+            let (workspace, cx) = setup_workspace(cx).await;
 
-        workspace.update(cx, |workspace, cx| {
-            assert_eq!(workspace.panes().len(), 3);
-            assert_eq!(workspace.active_pane().read(cx).items().count(), 1);
-        });
+            add_an_item_to_active_pane(cx, &workspace, 1);
+            split_pane(cx, &workspace);
+            add_an_item_to_active_pane(cx, &workspace, 2);
+            split_pane(cx, &workspace);
+            add_an_item_to_active_pane(cx, &workspace, 3);
 
-        workspace.update(cx, |workspace, cx| {
-            workspace.join_all_panes(cx);
-        });
+            cx.executor().run_until_parked();
 
-        workspace.update(cx, |workspace, cx| {
-            assert_eq!(workspace.panes().len(), 1);
-            assert_eq!(workspace.active_pane().read(cx).items().count(), 3);
-        });
-    }
+            workspace.update(cx, |workspace, cx| {
+                let num_panes = workspace.panes().len();
+                let num_items_in_current_pane = workspace.active_pane().read(cx).items().count();
+                assert_eq!(num_panes, 3);
+                assert_eq!(num_items_in_current_pane, 1);
+            });
 
-    #[gpui::test]
-    async fn test_join_pane_into_next(cx: &mut gpui::TestAppContext) {
-        init_test(cx);
+            workspace.update(cx, |workspace, cx| {
+                workspace.join_all_panes(cx);
+            });
 
-        let fs = FakeFs::new(cx.executor());
+            workspace.update(cx, |workspace, cx| {
+                let num_panes = workspace.panes().len();
+                let num_items_in_current_pane = workspace.active_pane().read(cx).items().count();
+                assert_eq!(num_panes, 1);
+                assert_eq!(num_items_in_current_pane, 3);
+            });
+        }
 
-        let project = Project::test(fs, None, cx).await;
-        let (workspace, cx) = cx.add_window_view(|cx| Workspace::test_new(project, cx));
+        #[gpui::test]
+        async fn test_join_pane_into_next(cx: &mut gpui::TestAppContext) {
+            let (workspace, cx) = setup_workspace(cx).await;
 
-        // Let's arrange the panes like this:
-        //
-        // +-----------------------+
-        // |         top           |
-        // +------+--------+-------+
-        // | left | center | right |
-        // +------+--------+-------+
-        // |        bottom         |
-        // +-----------------------+
+            // Let's arrange the panes like this:
+            //
+            // +-----------------------+
+            // |         top           |
+            // +------+--------+-------+
+            // | left | center | right |
+            // +------+--------+-------+
+            // |        bottom         |
+            // +-----------------------+
 
-        let top_item = cx.new_view(|cx| {
-            TestItem::new(cx).with_project_items(&[TestProjectItem::new(1, "top.txt", cx)])
-        });
-        let bottom_item = cx.new_view(|cx| {
-            TestItem::new(cx).with_project_items(&[TestProjectItem::new(2, "bottom.txt", cx)])
-        });
-        let left_item = cx.new_view(|cx| {
-            TestItem::new(cx).with_project_items(&[TestProjectItem::new(3, "left.txt", cx)])
-        });
-        let right_item = cx.new_view(|cx| {
-            TestItem::new(cx).with_project_items(&[TestProjectItem::new(4, "right.txt", cx)])
-        });
-        let center_item = cx.new_view(|cx| {
-            TestItem::new(cx).with_project_items(&[TestProjectItem::new(5, "center.txt", cx)])
-        });
+            let top_item = cx.new_view(|cx| {
+                TestItem::new(cx).with_project_items(&[TestProjectItem::new(1, "top.txt", cx)])
+            });
+            let bottom_item = cx.new_view(|cx| {
+                TestItem::new(cx).with_project_items(&[TestProjectItem::new(2, "bottom.txt", cx)])
+            });
+            let left_item = cx.new_view(|cx| {
+                TestItem::new(cx).with_project_items(&[TestProjectItem::new(3, "left.txt", cx)])
+            });
+            let right_item = cx.new_view(|cx| {
+                TestItem::new(cx).with_project_items(&[TestProjectItem::new(4, "right.txt", cx)])
+            });
+            let center_item = cx.new_view(|cx| {
+                TestItem::new(cx).with_project_items(&[TestProjectItem::new(5, "center.txt", cx)])
+            });
 
-        let top_pane_id = workspace.update(cx, |workspace, cx| {
-            let top_pane_id = workspace.active_pane().entity_id();
-            workspace.add_item_to_active_pane(Box::new(top_item.clone()), None, false, cx);
-            workspace.split_pane(workspace.active_pane().clone(), SplitDirection::Down, cx);
-            top_pane_id
-        });
-        let bottom_pane_id = workspace.update(cx, |workspace, cx| {
-            let bottom_pane_id = workspace.active_pane().entity_id();
-            workspace.add_item_to_active_pane(Box::new(bottom_item.clone()), None, false, cx);
-            workspace.split_pane(workspace.active_pane().clone(), SplitDirection::Up, cx);
-            bottom_pane_id
-        });
-        let left_pane_id = workspace.update(cx, |workspace, cx| {
-            let left_pane_id = workspace.active_pane().entity_id();
-            workspace.add_item_to_active_pane(Box::new(left_item.clone()), None, false, cx);
-            workspace.split_pane(workspace.active_pane().clone(), SplitDirection::Right, cx);
-            left_pane_id
-        });
-        let right_pane_id = workspace.update(cx, |workspace, cx| {
-            let right_pane_id = workspace.active_pane().entity_id();
-            workspace.add_item_to_active_pane(Box::new(right_item.clone()), None, false, cx);
-            workspace.split_pane(workspace.active_pane().clone(), SplitDirection::Left, cx);
-            right_pane_id
-        });
-        let center_pane_id = workspace.update(cx, |workspace, cx| {
-            let center_pane_id = workspace.active_pane().entity_id();
-            workspace.add_item_to_active_pane(Box::new(center_item.clone()), None, false, cx);
-            center_pane_id
-        });
-        cx.executor().run_until_parked();
+            let top_pane_id = workspace.update(cx, |workspace, cx| {
+                let top_pane_id = workspace.active_pane().entity_id();
+                workspace.add_item_to_active_pane(Box::new(top_item.clone()), None, false, cx);
+                workspace.split_pane(workspace.active_pane().clone(), SplitDirection::Down, cx);
+                top_pane_id
+            });
+            let bottom_pane_id = workspace.update(cx, |workspace, cx| {
+                let bottom_pane_id = workspace.active_pane().entity_id();
+                workspace.add_item_to_active_pane(Box::new(bottom_item.clone()), None, false, cx);
+                workspace.split_pane(workspace.active_pane().clone(), SplitDirection::Up, cx);
+                bottom_pane_id
+            });
+            let left_pane_id = workspace.update(cx, |workspace, cx| {
+                let left_pane_id = workspace.active_pane().entity_id();
+                workspace.add_item_to_active_pane(Box::new(left_item.clone()), None, false, cx);
+                workspace.split_pane(workspace.active_pane().clone(), SplitDirection::Right, cx);
+                left_pane_id
+            });
+            let right_pane_id = workspace.update(cx, |workspace, cx| {
+                let right_pane_id = workspace.active_pane().entity_id();
+                workspace.add_item_to_active_pane(Box::new(right_item.clone()), None, false, cx);
+                workspace.split_pane(workspace.active_pane().clone(), SplitDirection::Left, cx);
+                right_pane_id
+            });
+            let center_pane_id = workspace.update(cx, |workspace, cx| {
+                let center_pane_id = workspace.active_pane().entity_id();
+                workspace.add_item_to_active_pane(Box::new(center_item.clone()), None, false, cx);
+                center_pane_id
+            });
+            cx.executor().run_until_parked();
 
-        workspace.update(cx, |workspace, cx| {
-            assert_eq!(center_pane_id, workspace.active_pane().entity_id());
+            workspace.update(cx, |workspace, cx| {
+                assert_eq!(center_pane_id, workspace.active_pane().entity_id());
 
-            // Join into next from center pane into right
-            workspace.join_pane_into_next(workspace.active_pane().clone(), cx);
-        });
+                // Join into next from center pane into right
+                workspace.join_pane_into_next(workspace.active_pane().clone(), cx);
+            });
 
-        workspace.update(cx, |workspace, cx| {
-            let active_pane = workspace.active_pane();
-            assert_eq!(right_pane_id, active_pane.entity_id());
-            assert_eq!(2, active_pane.read(cx).items_len());
-            let item_ids_in_pane =
-                HashSet::from_iter(active_pane.read(cx).items().map(|item| item.item_id()));
-            assert!(item_ids_in_pane.contains(&center_item.item_id()));
-            assert!(item_ids_in_pane.contains(&right_item.item_id()));
+            workspace.update(cx, |workspace, cx| {
+                let active_pane = workspace.active_pane();
+                assert_eq!(right_pane_id, active_pane.entity_id());
+                assert_eq!(2, active_pane.read(cx).items_len());
+                let item_ids_in_pane =
+                    HashSet::from_iter(active_pane.read(cx).items().map(|item| item.item_id()));
+                assert!(item_ids_in_pane.contains(&center_item.item_id()));
+                assert!(item_ids_in_pane.contains(&right_item.item_id()));
 
-            // Join into next from right pane into bottom
-            workspace.join_pane_into_next(workspace.active_pane().clone(), cx);
-        });
+                // Join into next from right pane into bottom
+                workspace.join_pane_into_next(workspace.active_pane().clone(), cx);
+            });
 
-        workspace.update(cx, |workspace, cx| {
-            let active_pane = workspace.active_pane();
-            assert_eq!(bottom_pane_id, active_pane.entity_id());
-            assert_eq!(3, active_pane.read(cx).items_len());
-            let item_ids_in_pane =
-                HashSet::from_iter(active_pane.read(cx).items().map(|item| item.item_id()));
-            assert!(item_ids_in_pane.contains(&center_item.item_id()));
-            assert!(item_ids_in_pane.contains(&right_item.item_id()));
-            assert!(item_ids_in_pane.contains(&bottom_item.item_id()));
+            workspace.update(cx, |workspace, cx| {
+                let active_pane = workspace.active_pane();
+                assert_eq!(bottom_pane_id, active_pane.entity_id());
+                assert_eq!(3, active_pane.read(cx).items_len());
+                let item_ids_in_pane =
+                    HashSet::from_iter(active_pane.read(cx).items().map(|item| item.item_id()));
+                assert!(item_ids_in_pane.contains(&center_item.item_id()));
+                assert!(item_ids_in_pane.contains(&right_item.item_id()));
+                assert!(item_ids_in_pane.contains(&bottom_item.item_id()));
 
-            // Join into next from bottom pane into left
-            workspace.join_pane_into_next(workspace.active_pane().clone(), cx);
-        });
+                // Join into next from bottom pane into left
+                workspace.join_pane_into_next(workspace.active_pane().clone(), cx);
+            });
 
-        workspace.update(cx, |workspace, cx| {
-            let active_pane = workspace.active_pane();
-            assert_eq!(left_pane_id, active_pane.entity_id());
-            assert_eq!(4, active_pane.read(cx).items_len());
-            let item_ids_in_pane =
-                HashSet::from_iter(active_pane.read(cx).items().map(|item| item.item_id()));
-            assert!(item_ids_in_pane.contains(&center_item.item_id()));
-            assert!(item_ids_in_pane.contains(&right_item.item_id()));
-            assert!(item_ids_in_pane.contains(&bottom_item.item_id()));
-            assert!(item_ids_in_pane.contains(&left_item.item_id()));
+            workspace.update(cx, |workspace, cx| {
+                let active_pane = workspace.active_pane();
+                assert_eq!(left_pane_id, active_pane.entity_id());
+                assert_eq!(4, active_pane.read(cx).items_len());
+                let item_ids_in_pane =
+                    HashSet::from_iter(active_pane.read(cx).items().map(|item| item.item_id()));
+                assert!(item_ids_in_pane.contains(&center_item.item_id()));
+                assert!(item_ids_in_pane.contains(&right_item.item_id()));
+                assert!(item_ids_in_pane.contains(&bottom_item.item_id()));
+                assert!(item_ids_in_pane.contains(&left_item.item_id()));
 
-            // Join into next from left pane into top
-            workspace.join_pane_into_next(workspace.active_pane().clone(), cx);
-        });
+                // Join into next from left pane into top
+                workspace.join_pane_into_next(workspace.active_pane().clone(), cx);
+            });
 
-        workspace.update(cx, |workspace, cx| {
-            let active_pane = workspace.active_pane();
-            assert_eq!(top_pane_id, active_pane.entity_id());
-            assert_eq!(5, active_pane.read(cx).items_len());
-            let item_ids_in_pane =
-                HashSet::from_iter(active_pane.read(cx).items().map(|item| item.item_id()));
-            assert!(item_ids_in_pane.contains(&center_item.item_id()));
-            assert!(item_ids_in_pane.contains(&right_item.item_id()));
-            assert!(item_ids_in_pane.contains(&bottom_item.item_id()));
-            assert!(item_ids_in_pane.contains(&left_item.item_id()));
-            assert!(item_ids_in_pane.contains(&top_item.item_id()));
+            workspace.update(cx, |workspace, cx| {
+                let active_pane = workspace.active_pane();
+                assert_eq!(top_pane_id, active_pane.entity_id());
+                assert_eq!(5, active_pane.read(cx).items_len());
+                let item_ids_in_pane =
+                    HashSet::from_iter(active_pane.read(cx).items().map(|item| item.item_id()));
+                assert!(item_ids_in_pane.contains(&center_item.item_id()));
+                assert!(item_ids_in_pane.contains(&right_item.item_id()));
+                assert!(item_ids_in_pane.contains(&bottom_item.item_id()));
+                assert!(item_ids_in_pane.contains(&left_item.item_id()));
+                assert!(item_ids_in_pane.contains(&top_item.item_id()));
 
-            // Single pane left: no-op
-            workspace.join_pane_into_next(workspace.active_pane().clone(), cx)
-        });
+                // Single pane left: no-op
+                workspace.join_pane_into_next(workspace.active_pane().clone(), cx)
+            });
 
-        workspace.update(cx, |workspace, _cx| {
-            let active_pane = workspace.active_pane();
-            assert_eq!(top_pane_id, active_pane.entity_id());
-        });
+            workspace.update(cx, |workspace, _cx| {
+                let active_pane = workspace.active_pane();
+                assert_eq!(top_pane_id, active_pane.entity_id());
+            });
+        }
     }
 
     struct TestModal(FocusHandle);
