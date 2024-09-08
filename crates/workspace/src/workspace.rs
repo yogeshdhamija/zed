@@ -3123,6 +3123,48 @@ impl Workspace {
         }))
     }
 
+    pub fn join_pane_into_next(&mut self, pane: View<Pane>, cx: &mut ViewContext<Self>) {
+        let next_pane = self
+            .find_pane_in_direction(SplitDirection::Right, cx)
+            .or_else(|| self.find_pane_in_direction(SplitDirection::Down, cx))
+            .or_else(|| self.find_pane_in_direction(SplitDirection::Left, cx))
+            .or_else(|| self.find_pane_in_direction(SplitDirection::Up, cx));
+        let Some(next_pane) = next_pane else {
+            return;
+        };
+        self.move_all_items(&pane, &next_pane, cx);
+        cx.notify();
+    }
+
+    pub fn join_all_panes(&mut self, cx: &mut ViewContext<Self>) {
+        let active_item = self.active_pane.read(cx).active_item().take();
+        for i in 0..self.panes.len() {
+            self.join_pane_into_active(&self.panes[i].clone(), cx);
+        }
+        if let Some(active_item) = active_item {
+            self.activate_item(&(*active_item), true, true, cx);
+        }
+        cx.notify();
+    }
+
+    fn join_pane_into_active(&mut self, pane: &View<Pane>, cx: &mut ViewContext<'_, Workspace>) {
+        if *pane == self.active_pane {
+            return;
+        } else if pane.read(cx).items_len() == 0 {
+            self.close_pane(pane, cx);
+        } else {
+            self.move_all_items(pane, &self.active_pane.clone(), cx);
+        }
+    }
+
+    fn close_pane(&mut self, pane: &View<Pane>, cx: &mut ViewContext<Self>) {
+        pane.update(cx, |_, cx| {
+            cx.emit(pane::Event::Remove {
+                focus_on_pane: None,
+            })
+        })
+    }
+
     fn move_all_items(
         &mut self,
         from_pane: &View<Pane>,
@@ -3137,40 +3179,6 @@ impl Workspace {
         for item_id in item_ids {
             self.move_item(from_pane, to_pane, item_id, 0, cx);
         }
-    }
-
-    pub fn join_all_panes(&mut self, cx: &mut ViewContext<Self>) {
-        let active_item = self.active_pane.read(cx).active_item().take();
-        for i in 0..self.panes.len() {
-            if self.panes[i] != self.active_pane {
-                if self.panes[i].read(cx).items_len() == 0 {
-                    self.panes[i].update(cx, |_, cx| {
-                        cx.emit(pane::Event::Remove {
-                            focus_on_pane: None,
-                        })
-                    })
-                } else {
-                    self.move_all_items(&self.panes[i].clone(), &self.active_pane.clone(), cx);
-                }
-            }
-        }
-        if let Some(active_item) = active_item {
-            self.activate_item(&(*active_item), true, true, cx);
-        }
-        cx.notify();
-    }
-
-    pub fn join_pane_into_next(&mut self, pane: View<Pane>, cx: &mut ViewContext<Self>) {
-        let next_pane = self
-            .find_pane_in_direction(SplitDirection::Right, cx)
-            .or_else(|| self.find_pane_in_direction(SplitDirection::Down, cx))
-            .or_else(|| self.find_pane_in_direction(SplitDirection::Left, cx))
-            .or_else(|| self.find_pane_in_direction(SplitDirection::Up, cx));
-        let Some(next_pane) = next_pane else {
-            return;
-        };
-        self.move_all_items(&pane, &next_pane, cx);
-        cx.notify();
     }
 
     pub fn move_item(
@@ -6754,7 +6762,9 @@ mod tests {
     #[gpui::test]
     async fn test_join_pane_into_next(cx: &mut gpui::TestAppContext) {
         init_test(cx);
+
         let fs = FakeFs::new(cx.executor());
+
         let project = Project::test(fs, None, cx).await;
         let (workspace, cx) = cx.add_window_view(|cx| Workspace::test_new(project, cx));
 
