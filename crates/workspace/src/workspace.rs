@@ -3095,7 +3095,7 @@ impl Workspace {
         };
 
         let new_pane = self.add_pane(cx);
-        self.move_item(from.clone(), new_pane.clone(), item_id_to_move, 0, cx);
+        self.move_item(&from, &new_pane, item_id_to_move, 0, cx);
         self.center
             .split(&pane_to_split, &new_pane, split_direction)
             .unwrap();
@@ -3125,8 +3125,8 @@ impl Workspace {
 
     pub fn join_all_panes(&mut self, cx: &mut ViewContext<Self>) {
         let active_item = self.active_pane.read(cx).active_item().take();
-        for pane in self.panes.clone() {
-            self.move_all_items(cx, pane.clone(), self.active_pane.clone().clone());
+        for i in 0..self.panes.len() {
+            self.move_all_items(&self.panes[i].clone(), &self.active_pane.clone(), cx);
         }
         if let Some(active_item) = active_item {
             self.activate_item(&(*active_item), true, true, cx);
@@ -3138,15 +3138,15 @@ impl Workspace {
         let Some(next_pane) = self.find_next_pane(cx) else {
             return;
         };
-        self.move_all_items(cx, pane, next_pane);
+        self.move_all_items(&pane, &next_pane, cx);
         cx.notify();
     }
 
     fn move_all_items(
         &mut self,
-        cx: &mut ViewContext<'_, Workspace>,
-        from_pane: View<Pane>,
-        to_pane: View<Pane>,
+        from_pane: &View<Pane>,
+        to_pane: &View<Pane>,
+        cx: &mut ViewContext<'_, Self>,
     ) {
         let item_ids: Vec<EntityId> = from_pane
             .read(cx)
@@ -3154,7 +3154,7 @@ impl Workspace {
             .map(|item| item.item_id())
             .collect();
         for item_id in item_ids {
-            self.move_item(from_pane.clone(), to_pane.clone(), item_id, 0, cx);
+            self.move_item(from_pane, to_pane, item_id, 0, cx);
         }
     }
 
@@ -3167,8 +3167,8 @@ impl Workspace {
 
     pub fn move_item(
         &mut self,
-        source: View<Pane>,
-        destination: View<Pane>,
+        source: &View<Pane>,
+        destination: &View<Pane>,
         item_id_to_move: EntityId,
         destination_index: usize,
         cx: &mut ViewContext<Self>,

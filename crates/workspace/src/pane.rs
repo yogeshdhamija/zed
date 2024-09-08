@@ -1754,7 +1754,7 @@ impl Pane {
             self.workspace
                 .update(cx, |_, cx| {
                     cx.defer(move |this, cx| {
-                        this.move_item(pane.clone(), pane, id, destination_index, cx)
+                        this.move_item(&pane, &pane, id, destination_index, cx)
                     });
                 })
                 .ok()?;
@@ -1774,7 +1774,7 @@ impl Pane {
             self.workspace
                 .update(cx, |_, cx| {
                     cx.defer(move |this, cx| {
-                        this.move_item(pane.clone(), pane, id, destination_index, cx)
+                        this.move_item(&pane, &pane, id, destination_index, cx)
                     });
                 })
                 .ok()?;
@@ -2345,7 +2345,7 @@ impl Pane {
                             }
                         })
                     }
-                    workspace.move_item(from_pane.clone(), to_pane.clone(), item_id, ix, cx);
+                    workspace.move_item(&from_pane, &to_pane, item_id, ix, cx);
                 });
             })
             .log_err();
