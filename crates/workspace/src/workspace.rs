@@ -3142,7 +3142,17 @@ impl Workspace {
     pub fn join_all_panes(&mut self, cx: &mut ViewContext<Self>) {
         let active_item = self.active_pane.read(cx).active_item().take();
         for i in 0..self.panes.len() {
-            self.move_all_items(&self.panes[i].clone(), &self.active_pane.clone(), cx);
+            if self.panes[i] != self.active_pane {
+                if self.panes[i].read(cx).items_len() == 0 {
+                    self.panes[i].update(cx, |_, cx| {
+                        cx.emit(pane::Event::Remove {
+                            focus_on_pane: None,
+                        })
+                    })
+                } else {
+                    self.move_all_items(&self.panes[i].clone(), &self.active_pane.clone(), cx);
+                }
+            }
         }
         if let Some(active_item) = active_item {
             self.activate_item(&(*active_item), true, true, cx);
