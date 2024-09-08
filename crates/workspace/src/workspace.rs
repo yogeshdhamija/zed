@@ -6912,6 +6912,7 @@ mod tests {
         add_an_item_to_active_pane(cx, &workspace, 1);
         split_pane(cx, &workspace);
         add_an_item_to_active_pane(cx, &workspace, 2);
+        split_pane(cx, &workspace); // empty pane
         split_pane(cx, &workspace);
         let last_item = add_an_item_to_active_pane(cx, &workspace, 3);
 
@@ -6926,7 +6927,7 @@ mod tests {
                 .active_item()
                 .expect("item is in focus");
 
-            assert_eq!(num_panes, 3);
+            assert_eq!(num_panes, 4);
             assert_eq!(num_items_in_current_pane, 1);
             assert_eq!(active_item.item_id(), last_item.item_id());
         });
